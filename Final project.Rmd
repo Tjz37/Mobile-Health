@@ -1,0 +1,380 @@
+---
+title: "Project"
+output: html_document
+date: '2022-10-05'
+---
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(ggplot2)
+library(lme4)
+library(lmerTest)
+library(tidyr)
+library(randomForest)
+library(car)
+
+```
+
+correlated tree models. conditional
+linear mix models.
+
+```{r cars}
+df <- read.csv("demototal.csv")
+
+df <- df %>%
+         filter(pregnant_week < 40,age < 39)
+
+df <- df %>% 
+  mutate(
+    duration = duration/60,
+    awake = awake/60,
+    light = light/60,
+    rem = rem/60,
+    deep = deep/60,
+    total = total/60,
+    Obesity = as.factor(Obesity),
+    over30 = as.factor(over30),
+    trimester = case_when(pregnant_week <= 13 ~ '1',
+                          pregnant_week <= 26 ~ '2',
+                          pregnant_week > 26 ~ '3')
+  )
+```
+
+
+
+```{r}
+mem1 <- lmer(hr_average ~ duration*pregnant_week + (1|id) + (1|Obesity) +(1|over30), data = df)
+```
+```{r}
+summary(mem1)
+```
+
+```{r}
+mem2 <- lmer(hr_average ~ awake*light*rem*deep*pregnant_week + (1|id) + (1|Obesity) +(1|over30), data = df)
+summary(mem2)
+```
+
+```{r}
+mem3 <- lmer(hr_average ~ bedtime_start_delta*bedtime_end_delta + (1|id) + (1|Obesity) +(1|over30), data = df)
+summary(mem3)
+```
+```{r}
+mem4 <- lmer(hr_average ~ bedtime_start_delta*pregnant_week + (1|id) + (1|Obesity) +(1|over30), data = df)
+summary(mem4)
+```
+```{r}
+mem5 <- lmer(hr_average ~ onset_latency*midpoint_time + (1|id) + (1|Obesity) +(1|over30), data = df)
+summary(mem5)
+```
+```{r}
+mem6 <- lmer(hr_average ~ temperature_deviation*temperature_trend_deviation+ (1|id) + (1|Obesity) +(1|over30), data = df)
+summary(mem6)
+```
+significant factor: pregnant week, bedtime_start_delta, temperature_deviation, temperature_trend_deviation
+
+
+```{r}
+mem7 <- lmer(hr_average ~ temperature_delta+ (1|id) + (1|Obesity) +(1|over30), data = df)
+summary(mem7)
+```
+
+significant factor: pregnant_week, bedtime_start_delta, temperature_deviation, temperature_trend_deviation, temperature_delta
+
+```{r}
+newdf <- df %>%
+  select(rmssd,pregnant_week, bedtime_start_delta, 
+         temperature_deviation, temperature_trend_deviation, 
+         temperature_delta,duration,awake,light,
+         rem,deep,age,onset_latency,midpoint_time,
+         efficiency,restless,breath_average,id,Obesity,over30)
+```
+
+```{r}
+fmem <- lmer(rmssd ~. + (1|id) + (1|Obesity) +(1|over30), data = newdf)
+summary(fmem)
+```
+
+
+
+```{r}
+newdf %>% drop_na()
+```
+
+```{r}
+newdf=na.omit(newdf)
+rmssd.rf<- randomForest (rmssd~.,data=newdf,importance = TRUE,
+         ntree=1000)
+```
+
+```{r}
+print(rmssd.rf)
+```
+```{r}
+importance(rmssd.rf)
+```
+```{r}
+varImpPlot(rmssd.rf)
+```
+
+2.
+
+
+```{r}
+newdf <- split(df, f = df$over30)
+```
+
+```{r}
+younger <- newdf$`0`
+older <- newdf$`1`
+```
+
+```{r}
+youngerdf <- younger %>%
+  select(rmssd,pregnant_week, bedtime_start_delta, temperature_deviation, temperature_trend_deviation, temperature_delta,duration,awake,light,rem,deep,onset_latency,midpoint_time,efficiency,restless,breath_average)
+```
+
+```{r}
+youngertmp <- younger %>%
+  select(rmssd,pregnant_week, bedtime_start_delta, temperature_deviation, temperature_trend_deviation, duration,awake,light,rem,onset_latency,midpoint_time,efficiency,restless,breath_average)
+```
+
+```{r}
+younglm <- lm(rmssd ~ .,data = youngertmp)
+summary(younglm)
+```
+
+```{r}
+youngerdf %>% drop_na()
+```
+
+```{r}
+youngerdf=na.omit(youngerdf)
+rmssdy.rf<- randomForest (rmssd~.,data=youngerdf,importance = TRUE,
+         ntree=1000)
+```
+
+```{r}
+print(rmssdy.rf)
+```
+
+```{r}
+importance(rmssdy.rf)
+```
+
+```{r}
+varImpPlot(rmssdy.rf)
+```
+
+
+```{r}
+olderdf <- older %>%
+  select(rmssd,pregnant_week, bedtime_start_delta, temperature_deviation, temperature_trend_deviation, temperature_delta,duration,awake,light,rem,deep,onset_latency,midpoint_time,efficiency,restless,breath_average)
+```
+
+```{r}
+olderdf %>% drop_na()
+```
+
+```{r}
+olderdf=na.omit(olderdf)
+rmssdolder.rf<- randomForest (rmssd~.,data=olderdf,importance = TRUE,
+         ntree=500)
+```
+
+```{r}
+print(rmssdolder.rf)
+```
+
+```{r}
+importance(rmssdolder.rf)
+```
+
+```{r}
+varImpPlot(rmssdolder.rf)
+```
+     Younger people should care more about their bed starting time, older people should care more about their sleep duration. 
+     
+
+```{r}
+obesitydf <- split(df, f = df$Obesity)
+```
+
+```{r}
+obesity <- obesitydf$`0`
+nobesity <- obesitydf$`1`
+```
+
+```{r}
+obesity <- obesity %>%
+  select(rmssd,pregnant_week, bedtime_start_delta, temperature_deviation, temperature_trend_deviation, temperature_delta,duration,awake,light,rem,deep,age,onset_latency,midpoint_time,efficiency,restless,breath_average)
+```
+
+```{r}
+obesity %>% drop_na()
+```
+
+```{r}
+obesity=na.omit(obesity)
+rmssdobe.rf<- randomForest (rmssd~.,data=obesity,importance = TRUE,
+         ntree=1000)
+```
+
+```{r}
+print(rmssdobe.rf)
+```
+
+```{r}
+importance(rmssdobe.rf)
+```
+
+```{r}
+varImpPlot(rmssdobe.rf)
+```
+
+```{r}
+nobesity <- nobesity %>%
+  select(rmssd,pregnant_week, bedtime_start_delta, temperature_deviation, temperature_trend_deviation, temperature_delta,duration,awake,light,rem,deep,age,onset_latency,midpoint_time,efficiency,restless,breath_average)
+```
+
+```{r}
+nobesity %>% drop_na()
+```
+
+```{r}
+nobesity=na.omit(nobesity)
+rmssdnobe.rf<- randomForest (rmssd~.,data=nobesity,importance = TRUE,
+         ntree=1000)
+```
+
+```{r}
+print(rmssdnobe.rf)
+```
+
+```{r}
+importance(rmssdnobe.rf)
+```
+
+```{r}
+varImpPlot(rmssdobe.rf)
+varImpPlot(rmssdnobe.rf)
+```
+
+non Obesity deep sleep, obesity breath average.
+
+
+
+
+```{r}
+trimester <- split(df,df$trimester)
+first <- trimester$`1`
+sec <- trimester$`2`
+third <- trimester$`3`
+```
+
+
+
+```{r}
+seconddf <- sec %>%
+  select(rmssd,pregnant_week, bedtime_start_delta, temperature_deviation, temperature_trend_deviation, temperature_delta,duration,awake,light,rem,deep,onset_latency,midpoint_time,efficiency,restless,breath_average)
+```
+
+```{r}
+seconddf %>% drop_na()
+```
+
+```{r}
+seconddf=na.omit(seconddf)
+rmssdsec.rf<- randomForest (rmssd~.,data=seconddf,importance = TRUE,
+         ntree=1000)
+```
+
+```{r}
+print(rmssdsec.rf)
+```
+
+```{r}
+importance(rmssdsec.rf)
+```
+
+```{r}
+varImpPlot(rmssdsec.rf)
+```
+
+```{r}
+thirdf <- third %>%
+  select(rmssd,pregnant_week, bedtime_start_delta, temperature_deviation, temperature_trend_deviation, temperature_delta,duration,awake,light,rem,deep,onset_latency,midpoint_time,efficiency,restless,breath_average)
+```
+
+```{r}
+thirdf %>% drop_na()
+```
+
+```{r}
+thirdf=na.omit(thirdf)
+rmssdthird.rf<- randomForest (rmssd~.,data=thirdf,importance = TRUE,
+         ntree=1000)
+```
+
+```{r}
+cor(thirdf)
+```
+
+```{r}
+print(rmssdthird.rf)
+```
+
+```{r}
+importance(rmssdthird.rf)
+```
+
+```{r}
+varImpPlot(rmssdsec.rf)
+varImpPlot(rmssdthird.rf)
+```
+
+week3
+
+
+```{r}
+age <- df %>%
+  select(rmssd,pregnant_week, bedtime_start_delta, temperature_deviation, temperature_trend_deviation, duration,awake,light,rem,onset_latency,deep,midpoint_time,efficiency,restless,breath_average)
+```
+
+```{r}
+age %>% drop_na()
+```
+
+```{r}
+age=na.omit(age)
+age.rf<- randomForest (rmssd~.,data=age,importance = TRUE,
+         ntree=500)
+```
+
+```{r}
+print(age.rf)
+```
+
+```{r}
+importance(age.rf)
+```
+
+```{r}
+varImpPlot(rmssdobe.rf)
+varImpPlot(rmssdnobe.rf)
+```
+
+```{r}
+varImpPlot(rmssdy.rf)
+varImpPlot(rmssdolder.rf)
+```
+```{r}
+varImpPlot(rmssdsec.rf)
+varImpPlot(rmssdthird.rf)
+```
+```{r}
+summary(df$rmssd)
+```
+
+
+
+
